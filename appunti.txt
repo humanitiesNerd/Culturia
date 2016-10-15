@@ -1,0 +1,34 @@
+
+   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+      (let ((jquery (create-vertex '((package . ("jquery" . "3.1.1") )))))
+        (get (vertex-uid jquery)) ))
+
+
+   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+     (traversi->list (traversi-map get (vertices))))
+
+
+(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+  (vertex-ref (get "4D97RL3O") 'package)
+
+
+(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+  (vertex-ref (get (traversi-car (from 'package '(("jquery" . "3.1.0"))))) 'package)) 
+
+
+(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+  (traversi->list (traversi-map get (vertices))))
+
+
+(define (emit-prologue name port)
+  (format port "digraph \"Guix ~a\" {\n"
+          name))
+(define (emit-epilogue port)
+  (display "\n}\n" port))
+(define (emit-node id label port)
+  (format port "  \"~a\" [label = \"~a\", shape = box, fontname = Helvetica];~%"
+          id label))
+(define (emit-edge id1 id2 port)
+  (format port "  \"~a\" -> \"~a\" [color = ~a];~%"
+          id1 id2 (pop-color id1)))
+

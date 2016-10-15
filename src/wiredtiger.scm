@@ -94,7 +94,7 @@
 ;;; wiredtiger bindings
 ;;;
 
-(define wiredtiger (dynamic-link* "libwiredtiger.so"))
+(define wiredtiger (dynamic-link* "/gnu/store/fm49ypz5w65gav6xfhx1qj9p8ab2fln8-wiredtiger-next-20160924.d85e189/lib/libwiredtiger.so"))
 
 (define* wiredtiger-string-error
   (let ((function (wiredtiger POINTER "wiredtiger_strerror" int)))
