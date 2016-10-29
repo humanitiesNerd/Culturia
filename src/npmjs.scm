@@ -13,8 +13,12 @@
   #:use-module (ukv)  
   ;#:use-module (guix records)  
   ;#:use-module (srfi srfi-9 gnu)
+  #:export (npm-package jquery)
   )
 
+;(define-module (test_module)
+;    #: export (square
+;               cube))
 
 
 (define (json-fetch url)
@@ -36,11 +40,10 @@
     package))
 
 
-(define (package package-as-a-vertex) 
-  (let ((package-cell (vertex-ref package-as-a-vertex 'package)))
-    (match package-cell
-      ((name . version)
-       (downloaded-package name version)))))
+(define (npm-package package)
+  (match (assoc-ref (vertex-assoc package) 'package)
+    ((name . version)
+     (downloaded-package name version)))) 
 
 (define (children package)
   (if (sound? package)
@@ -58,23 +61,39 @@
         (get-or-create-vertex 'package  (cons "jquery"  "3.1.1") )
       jquery)
     ))
-  
-(define (populate-store! packages-alist)
 
-;  (define (starting-package package-cell)
-;     (receive (new package-vertex)
-         ;get-or-create
- ;      ) ;;TODO finire questa riga
- ;   package-vertex)
 
-  (define (update-store! head deps) 
-    (define (stuff-dep-in-store! head dep)
-      (let ((dep-package (create-vertex '((package dep)))))
-        (create-edge head dep-package '((label . depends-on)))))  
-    (for-each stuff-dep-in-store! deps))
+;(define jquery '("query" . "3.1.1"))
 
-  (let loop ((current-level  (map starting-package packages))
-             (next-level     '()))
+(define (processed-package! package-as-cons-cell)
+  (receive (new node)
+      (get-or-create-vertex 'package package-as-cons-cell)
+    (if new
+        (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f))))
+          current-vertex)
+        node)))
+
+(define (seen? package-as-vertex)
+  (vertex-ref package-as-vertex 'dependencies-already-processed?))
+
+(define (processed-dep! head dep)
+  (let ((node (processed-package! dep)))
+    (create-edge head node '((label . depends-on)))
+    node))
+
+(define (insert-deps! head deps)
+  "HEAD is supposed to be a vertex and deps is supposed to be an alist.
+  Returns a list of vertices (turns the alist into a list of vertices, storing them in the db in the process)"
+  (let ((processed-deps (map (lambda (dep)
+                               (processed-dep! head dep))
+                             deps)))  
+    (save (vertex-set head 'dependencies-already-processed? #t))
+    processed-deps))
+
+(define (populate-store! package)
+  (let loop ((current-level  (list package))
+             (next-level     '())
+             )
     (match current-level
       (() 
        (match next-level
@@ -87,16 +106,17 @@
           (loop next-level '()))))
       
       ((head . tail)
-       (let ((p (package head)))
-         (if (sound? p)
-             (let* ((deps (children p)))
-
-               
-               (update-store! head deps)
-               (loop tail (append deps next-level) ))         
-             (loop tail next-level ))
-         )
-       ))))
+       (if (seen? head)
+           (loop tail next-level)
+           (let ((p (npm-package head)))
+             (if (sound? p)
+                 (let* ((deps (children p))
+                       (deps-as-vertices (insert-deps! head deps)))
+                 (loop tail (append next-level deps-as-vertices)))))
+       ))
+      );closes the match
+    );closes the named let
+)
 
 (define (sound? package)
    (not (equal? (caadr package) "error")))
