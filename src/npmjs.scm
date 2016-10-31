@@ -34,6 +34,7 @@
 
 ;(define table (json->scm registry))
 
+(define env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*)))
 
 (define (downloaded-package package-name version)
   (let ((package (json-fetch (string-append *REGISTRY*  package-name "/" (encode-and-join-uri-path (list version))))))
@@ -53,17 +54,13 @@
         (append deps devDeps))       
       package))
 
-;(define jquery (make-npm-package-version "jquery" "3.1.1"))
 
-(define jquery
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (receive (new jquery)
-        (get-or-create-vertex 'package  (cons "jquery"  "3.1.1") )
-      jquery)
-    ))
-
-
-;(define jquery '("query" . "3.1.1"))
+;(define jquery
+;  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+;    (receive (new jquery)
+;        (get-or-create-vertex 'package  (cons "jquery"  "3.1.1") )
+;      jquery)
+;    ))
 
 (define (processed-package! package-as-cons-cell)
   (receive (new node)
@@ -72,6 +69,8 @@
         (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f))))
           current-vertex)
         node)))
+
+(define jquery (with-env env (processed-package! '("jquery" . "3.1.1"))))
 
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
@@ -94,29 +93,32 @@
   (let loop ((current-level  (list package))
              (next-level     '())
              )
-    (match current-level
-      (() 
-       (match next-level
-         (() ;; we have finished !
-          ;; This is what this monstre function is supposed to return
-          'done  
-          )
-         ((head . tail)
-          ;; we move to the next level
-          (loop next-level '()))))
-      
-      ((head . tail)
-       (if (seen? head)
-           (loop tail next-level)
-           (let ((p (npm-package head)))
-             (if (sound? p)
-                 (let* ((deps (children p))
-                       (deps-as-vertices (insert-deps! head deps)))
-                 (loop tail (append next-level deps-as-vertices)))))
-       ))
-      );closes the match
+    (with-env env
+      (match current-level
+        (() 
+         (match next-level
+           (() ;; we have finished !
+            ;; This is what this monstre function is supposed to return
+            'done  
+            )
+           ((head . tail)
+            ;; we move to the next level
+            (loop next-level '()))))
+        
+        ((head . tail)
+         (display (vertex-ref head 'package))
+         (if (seen? head)
+             (loop tail next-level)
+             (let ((p (npm-package head)))
+               (if (sound? p)
+                   (let* ((deps (children p))
+                          (deps-as-vertices (insert-deps! head deps)))
+                     (loop tail (append next-level deps-as-vertices)))))))
+        );closes the match
+      ) ;closes with-env
+    
     );closes the named let
-)
+  )
 
 (define (sound? package)
    (not (equal? (caadr package) "error")))
