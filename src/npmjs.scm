@@ -34,7 +34,7 @@
 
 ;(define table (json->scm registry))
 
-(define env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*)))
+;(define env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*)))
 
 (define (downloaded-package package-name version)
   (let ((package (json-fetch (string-append *REGISTRY*  package-name "/" (encode-and-join-uri-path (list version))))))
@@ -44,14 +44,20 @@
 (define (npm-package package)
   (match (assoc-ref (vertex-assoc package) 'package)
     ((name . version)
-     (downloaded-package name version)))) 
+     (downloaded-package name version))))
+
+(define (extracted-deps key package)
+  (let ((step1 (assoc-ref package key)))
+    (if step1
+        (cdr step1)
+        '())))
 
 (define (children package)
   (if (sound? package)
-      (let ((devDeps (cdr (assoc-ref package "devDependencies")))
-            (deps (cdr (assoc-ref package "dependencies"))))
-        
-        (append deps devDeps))       
+      (let ((devDepsValue (extracted-deps "devDependencies" package))
+            (depsValue (extracted-deps "dependencies" package)))
+        (append depsValue devDepsValue)
+        )
       package))
 
 
@@ -70,7 +76,7 @@
           current-vertex)
         node)))
 
-(define jquery (with-env env (processed-package! '("jquery" . "3.1.1"))))
+
 
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
@@ -93,7 +99,7 @@
   (let loop ((current-level  (list package))
              (next-level     '())
              )
-    (with-env env
+;    (with-env env
       (match current-level
         (() 
          (match next-level
@@ -115,14 +121,27 @@
                           (deps-as-vertices (insert-deps! head deps)))
                      (loop tail (append next-level deps-as-vertices)))))))
         );closes the match
-      ) ;closes with-env
+ ;     ) ;closes with-env
     
     );closes the named let
   )
 
-(define (sound? package)
-   (not (equal? (caadr package) "error")))
 
+(define (sound? package)
+  (match package ((@)                           ;the package does not exists
+                  #f)
+                  ((@ ("error" . error-message)) ;the version does not exists
+                  #f)
+                  (_ #t)))
+
+(define (tdp)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (processed-package! '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02"))))
+
+(define (testa-di-ponte)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
+      (populate-store! jquery))))
 
 
 		 ;(if (sound? deps)
