@@ -37,7 +37,10 @@
 ;(define env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*)))
 
 (define (downloaded-package package-name version)
-  (let ((package (json-fetch (string-append *REGISTRY*  package-name "/" (encode-and-join-uri-path (list version))))))
+  (let ((package (json-fetch (string-append *REGISTRY*
+                                            package-name "/"
+                                            (encode-and-join-uri-path
+                                             (list version))))))
     package))
 
 
@@ -59,14 +62,6 @@
         (append depsValue devDepsValue)
         )
       package))
-
-
-;(define jquery
-;  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-;    (receive (new jquery)
-;        (get-or-create-vertex 'package  (cons "jquery"  "3.1.1") )
-;      jquery)
-;    ))
 
 (define (processed-package! package-as-cons-cell)
   (receive (new node)
@@ -144,28 +139,85 @@
       (populate-store! jquery))))
 
 
-		 ;(if (sound? deps)
-		 ;    (hash-fold (lambda (dep dep-version edges-store)
-		 ;		  (vhash-consq
-		 ;		   (string-append package-name "---" version)
-		 ;		   (string-append dep "---" dep-version)
-		 ;		   edges-store)
-		 ;		  edges-store deps)))
-		 
-		 
-		 
-		 ;(if (sound? dev-deps);; esiste elif ?
-		 ;    (hash-fold (lambda (dev-dep dev-dep-version edges-store)
-		 ;		  (vhash-consq
-		 ;		   ...
-		 ;		   ...
-		 ;		   edges-store))
-		 ;		edges-store dev-deps))
+(define (write-graph!)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
+      (export-graph! jquery))))
+
+(define (dependencies?)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
+      (dependencies jquery))))
+
+(define (edges1)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-map get
+                   (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
+                                    (traversi-map end (edges)))))))
+(define (edges2)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-map get 
+                   (traversi-backtrack
+                    (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
+                                     (traversi-map end (edges))))))))
+(define (edges3)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-map get
+                   (traversi-map start 
+                                 (traversi-backtrack
+                                  (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
+                                                   (traversi-map end (edges)))))))))
+(define (jq1)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
+      (outgoings jquery))))
+
+(define (jq2)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
+      (outgoings jquery))))
 
 
+(define* (export-graph! starting-from)
+  (let ((port (open-output-file "../grafo.dot")))
+    (emit-prologue "mane" port)
+    (let loop ((nodes   (list starting-from))
+               )
+      (match nodes
+        (()
+         (emit-epilogue port))
+        ((head . tail)
+         (emit-node (node-name head) port)
+         (let ((deps (dependencies head))
+               (id (node-name head)))
+           (for-each (lambda (dependency)
+                       (emit-edge id (node-name dependency) port))
+                     deps)
+           (loop (append deps tail))))))
+    (close-port port)))
 
 
+(define (dependencies node)
+  (map end (outgoings node)))
 
+(define (node-name node-as-a-vertex)
+  (let ((node-as-a-cons-cell (vertex-ref node-as-a-vertex 'package)))
+    (match node-as-a-cons-cell
+      ((name . version)
+       (string-append name "~~~" version))))
+  )
 
-;$29 = 25320
-;$30 = 311894
+(define (emit-prologue name port)
+  (format port "digraph \"Guix ~a\" {\n"
+          name))
+(define (emit-epilogue port)
+  (display "\n}\n" port))
+(define (emit-node id port)
+  (format port "  \"~a\" [label = \"~a\", shape = box, fontname = Helvetica];~%"
+          id id))
+(define (emit-edge id1 id2 port)
+  (format port "  \"~a\" -> \"~a\" [color = ~a];~%"
+          id1 id2 (pop-color id1)))
