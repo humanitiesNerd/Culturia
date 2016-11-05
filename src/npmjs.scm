@@ -141,67 +141,44 @@
 
 (define (write-graph!)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
+    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
       (export-graph! jquery))))
 
-(define (dependencies?)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
-      (dependencies jquery))))
-
-(define (edges1)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (traversi->list
-     (traversi-map get
-                   (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
-                                    (traversi-map end (edges)))))))
-(define (edges2)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (traversi->list
-     (traversi-map get 
-                   (traversi-backtrack
-                    (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
-                                     (traversi-map end (edges))))))))
-(define (edges3)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (traversi->list
-     (traversi-map get
-                   (traversi-map start 
-                                 (traversi-backtrack
-                                  (traversi-filter (where? 'package '("babel-preset-es2015" . "6.6.0"))
-                                                   (traversi-map end (edges)))))))))
-(define (jq1)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
-      (outgoings jquery))))
-
-(define (jq2)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
-      (outgoings jquery))))
 
 
-(define* (export-graph! starting-from)
+
+(define (export-graph! starting-from)
+
+  (define (seen? store thing)
+    (vhash-assq thing store))
+
+  (define (seen store thing)
+    (vhash-consq thing #t store))
+  
   (let ((port (open-output-file "../grafo.dot")))
-    (emit-prologue "mane" port)
+    (emit-prologue "name" port)
+
     (let loop ((nodes   (list starting-from))
-               )
+               (store    vlist-null))
       (match nodes
         (()
          (emit-epilogue port))
         ((head . tail)
-         (emit-node (node-name head) port)
-         (let ((deps (dependencies head))
-               (id (node-name head)))
-           (for-each (lambda (dependency)
-                       (emit-edge id (node-name dependency) port))
-                     deps)
-           (loop (append deps tail))))))
-    (close-port port)))
+         (if (seen? store head)
+             (loop tail store)
+             (let ((deps (dependencies head))
+                   (id (node-name head)))
+
+               (emit-node id port)
+               (for-each (lambda (dependency)
+                           (emit-edge id (node-name dependency) port))
+                         deps)           
+               (loop (append tail deps) (seen store head))))))
+    (close-port port))))
 
 
 (define (dependencies node)
-  (map end (outgoings node)))
+  (map get (map end (outgoings (vertex-uid node)))))
 
 (define (node-name node-as-a-vertex)
   (let ((node-as-a-cons-cell (vertex-ref node-as-a-vertex 'package)))
@@ -221,3 +198,13 @@
 (define (emit-edge id1 id2 port)
   (format port "  \"~a\" -> \"~a\" [color = ~a];~%"
           id1 id2 (pop-color id1)))
+
+(define %colors
+  ;; See colortbl.h in Graphviz.
+  #("red" "magenta" "blue" "cyan3" "darkseagreen"
+    "peachpuff4" "darkviolet" "dimgrey" "darkgoldenrod"))
+
+(define (pop-color hint)
+  "Return a Graphviz color based on HINT, an arbitrary object."
+  (let ((index (hash hint (vector-length %colors))))
+    (vector-ref %colors index)))
