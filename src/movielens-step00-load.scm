@@ -36,7 +36,7 @@
                            (next (cdr genres))))))))
 
 ;; create movies with genres
-(with-env (env-open* "/tmp/wt" (list *ukv*))
+(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/data" (list *ukv*))
   (traversi-for-each store-movie movies))
 
 
@@ -60,5 +60,5 @@
                      (display "."))))))
 
 ;; create user s with rating
-(with-env (env-open* "/tmp/wt" (list *ukv*))
+(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/data" (list *ukv*))
   (traversi-for-each store-rating ratings))

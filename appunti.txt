@@ -1,7 +1,23 @@
+("ZS9E3XU3" "PHVUGDGK" "HWY2XGM5")
+  FIFTFSFC   FIFTFSFC   01DLZ5R4
+
+"shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02
+
+(with-env (env-open* "../npmjsdata" (list *ukv*)) (traversi-for-each pk (traversi-map get (traversi-map start (traversi-scatter (traversi-map incomings (from 'package  '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02"))))))))
+
+
+(with-env (env-open* "../npmjsdata" (list *ukv*)) (traversi->list (traversi-map incomings (from 'package  '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02")))))
 
    (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
       (let ((jquery (create-vertex '((package . ("jquery" . "3.1.1") )))))
         (get (vertex-uid jquery)) ))
+
+
+     (with-context*
+      (processed-package jquery)
+         )
+
+(define env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*)))
 
 
    (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))

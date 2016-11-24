@@ -76,7 +76,7 @@
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
 
-(define (processed-dep! head dep)
+(define (processed-dep! head dep) ;;TODO controllare la versione
   (let ((node (processed-package! dep)))
     (create-edge head node '((label . depends-on)))
     node))
@@ -173,8 +173,8 @@
                (for-each (lambda (dependency)
                            (emit-edge id (node-name dependency) port))
                          deps)           
-               (loop (append tail deps) (seen store head))))))
-    (close-port port))))
+               (loop (append tail deps) (seen store head)))))))
+    (close-port port)))
 
 
 (define (dependencies node)
