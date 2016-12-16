@@ -63,20 +63,41 @@
         )
       package))
 
+(define (unraveled-dep! head dep) 
+  (match dep
+    ((name . version)
+     (let ((version-kinds (char-set #\^ #\~))
+           (starting-char (string-ref version 0)))
+       (if (char-set-contains? version-kinds starting-char) 
+           (processed-dep! head (name . (substring version 1)) starting-char)
+           (processed-dep! head (name . version) #\=)
+           )))))
+
+(define version-kinds (char-set #\^ #\~))
+
 (define (processed-package! package-as-cons-cell)
-  (receive (new node)
-      (get-or-create-vertex 'package package-as-cons-cell)
-    (if new
-        (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f))))
-          current-vertex)
-        node)))
+
+  (define (real-work package-cons-cell kind) ;;TODO che facciamo col kind ?
+    (receive (new node)
+        (get-or-create-vertex 'package package-as-cons-cell)
+      (if new
+          (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f))))
+            current-vertex)
+          node)))
+  
+  (match package-as-cons-cell
+    ((name . version)
+     (let ((starting-char (string-ref version 0)))
+       (if (char-set-contains? version-kinds starting-char)
+           (real-work (name . (substring version 1)) starting-char)
+           (real-work (name . version) #\=))))))
 
 
 
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
 
-(define (processed-dep! head dep) ;;TODO controllare la versione
+(define (processed-dep! head dep kind) ;;TODO controllare la versione
   (let ((node (processed-package! dep)))
     (create-edge head node '((label . depends-on)))
     node))
@@ -110,10 +131,10 @@
          (display (vertex-ref head 'package))
          (if (seen? head)
              (loop tail next-level)
-             (let ((p (npm-package head)))
+             (let ((p (npm-package head))) ;;TODO npm-package must consider the incoming edge and take thhe kind of the dependency from its attributes. Then it has to do the right thing with it
                (if (sound? p)
                    (let* ((deps (children p))
-                          (deps-as-vertices (insert-deps! head deps)))
+                          (deps-as-vertices (insert-deps! head deps))) ;;TODO insert-deps must articulate edges and nodes in the right way.
                      (loop tail (append next-level deps-as-vertices)))))))
         );closes the match
  ;     ) ;closes with-env
