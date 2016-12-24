@@ -44,10 +44,16 @@
     package))
 
 
-(define (npm-package package)
+(define (old-npm-package package)
   (match (assoc-ref (vertex-assoc package) 'package)
     ((name . version)
      (downloaded-package name version))))
+
+(define (npm-package package)
+  (match package
+    ((name . version)
+     (downloaded-package name version))))
+
 
 (define (extracted-deps key package)
   (let ((step1 (assoc-ref package key)))
@@ -63,43 +69,29 @@
         )
       package))
 
-(define (unraveled-dep! head dep) 
-  (match dep
-    ((name . version)
-     (let ((version-kinds (char-set #\^ #\~))
-           (starting-char (string-ref version 0)))
-       (if (char-set-contains? version-kinds starting-char) 
-           (processed-dep! head (name . (substring version 1)) starting-char)
-           (processed-dep! head (name . version) #\=)
-           )))))
-
-(define version-kinds (char-set #\^ #\~))
+(define (extracted-version downloaded-package)
+  (assoc-ref downloaded-package "version"))
 
 (define (processed-package! package-as-cons-cell)
-
-  (define (real-work package-cons-cell kind) ;;TODO che facciamo col kind ?
-    (receive (new node)
-        (get-or-create-vertex 'package package-as-cons-cell)
-      (if new
-          (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f))))
-            current-vertex)
-          node)))
-  
-  (match package-as-cons-cell
-    ((name . version)
-     (let ((starting-char (string-ref version 0)))
-       (if (char-set-contains? version-kinds starting-char)
-           (real-work (name . (substring version 1)) starting-char)
-           (real-work (name . version) #\=))))))
-
+  (let ((p (npm-package package-as-cons-cell))) 
+    (if (sound? p)
+        (let* ((deps (children p))
+               (actual-version (extracted-version p)))
+          (receive (new node)
+              (get-or-create-vertex 'package '(name . actual-version))
+            (if new
+                (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f 'declared-deps deps))))
+                  current-vertex)
+                node)))
+        #f)))
 
 
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
 
-(define (processed-dep! head dep kind) ;;TODO controllare la versione
+(define (processed-dep! head dep) 
   (let ((node (processed-package! dep)))
-    (create-edge head node '((label . depends-on)))
+    (create-edge head node '((label . depends-on) (requested-version . (cdr dep)))) ;; TODO get-or-create-edge ?
     node))
 
 (define (insert-deps! head deps)
@@ -115,7 +107,6 @@
   (let loop ((current-level  (list package))
              (next-level     '())
              )
-;    (with-env env
       (match current-level
         (() 
          (match next-level
@@ -131,16 +122,9 @@
          (display (vertex-ref head 'package))
          (if (seen? head)
              (loop tail next-level)
-             (let ((p (npm-package head))) ;;TODO npm-package must consider the incoming edge and take thhe kind of the dependency from its attributes. Then it has to do the right thing with it
-               (if (sound? p)
-                   (let* ((deps (children p))
-                          (deps-as-vertices (insert-deps! head deps))) ;;TODO insert-deps must articulate edges and nodes in the right way.
-                     (loop tail (append next-level deps-as-vertices)))))))
-        );closes the match
- ;     ) ;closes with-env
-    
-    );closes the named let
-  )
+             (let* ((deps (vertex-ref head 'declared-dependencies))
+                    (deps-as-vertices (insert-deps! head deps))) ;;TODO insert-deps must articulate edges and nodes in the right way.
+               (loop tail (append next-level deps-as-vertices))))))))
 
 
 (define (sound? package)
