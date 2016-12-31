@@ -38,16 +38,10 @@
 
 (define (downloaded-package package-name version)
   (let ((package (json-fetch (string-append *REGISTRY*
-                                            package-name "/"
                                             (encode-and-join-uri-path
-                                             (list version))))))
+                                             (list package-name  version))))))
     package))
 
-
-(define (old-npm-package package)
-  (match (assoc-ref (vertex-assoc package) 'package)
-    ((name . version)
-     (downloaded-package name version))))
 
 (define (npm-package package)
   (match package
@@ -62,128 +56,204 @@
         '())))
 
 (define (children package)
-  (if (sound? package)
-      (let ((devDepsValue (extracted-deps "devDependencies" package))
-            (depsValue (extracted-deps "dependencies" package)))
-        (append depsValue devDepsValue)
-        )
-      package))
+  (let ((soundness-check (sound? package)))
+    (if (not (symbol? soundness-check))
+        (let ((devDepsValue (extracted-deps "devDependencies" package))
+              (depsValue (extracted-deps "dependencies" package)))
+          (append depsValue devDepsValue))
+        package)))
 
 (define (extracted-version downloaded-package)
   (assoc-ref downloaded-package "version"))
 
-(define (processed-package! package-as-cons-cell)
-  (let ((p (npm-package package-as-cons-cell))) 
-    (if (sound? p)
-        (let* ((deps (children p))
-               (actual-version (extracted-version p)))
-          (receive (new node)
-              (get-or-create-vertex 'package '(name . actual-version))
-            (if new
-                (let ((current-vertex (save (vertex-set node 'dependencies-already-processed? #f 'declared-deps deps))))
-                  current-vertex)
-                node)))
-        #f)))
+
+
+(define (insert-new-package! request-vertex)
+  (let* ((request-as-a-cons-cell (vertex-ref request-vertex 'request)) 
+         (p (npm-package request-as-a-cons-cell))
+         (name (car request-as-a-cons-cell)) 
+         (downloaded-package-soundness-check-result (sound? p)))
+    (if (symbol? downloaded-package-soundness-check-result)
+        (create-vertex `((package . package-request)
+                         (dependencies-already-processed? . #t)
+                         (broken-package . package-handle)))
+        (let ((actual-version (extracted-version p))
+              (deps (children p)))
+          (create-vertex `((package . ,(cons name  actual-version))
+                           (dependencies-already-processed? . #f)
+                           (declared-deps . ,deps)))))))
+
+
+
+(define (processed-dep! head dep-request-as-cons-cell)
+  ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new request-vertex)
+        (get-or-create-vertex 'request dep-request-as-cons-cell)
+      (if new
+          (let ((package-vertex (insert-new-package! request-vertex)))
+            (create-edge head package-vertex '((label . depends-on) ))
+            (create-edge head request-vertex '((label . requests)))
+            (create-edge request-vertex package-vertex '((label . yelds)))
+            package-vertex)
+          (let ((package-vertex (requested-package request-vertex)))
+            (create-edge head package-vertex '((label . depends-on) ))
+            (create-edge head request-vertex '((label . requests)))
+            (create-edge request-vertex package-vertex '((label . yelds)))
+            package-vertex)))
+    ;)
+  )
+
+
+(define (requested-package request)
+  (display "found package ")
+  (display request)
+  (display "\n")
+  (get (end (first (outgoings (vertex-uid request))))))
+ 
+(define (dependencies node)
+  (map get (map end (outgoings (vertex-uid node)))))
 
 
 (define (seen? package-as-vertex)
   (vertex-ref package-as-vertex 'dependencies-already-processed?))
 
-(define (processed-dep! head dep) 
-  (let ((node (processed-package! dep)))
-    (create-edge head node '((label . depends-on) (requested-version . (cdr dep)))) ;; TODO get-or-create-edge ?
-    node))
 
 (define (insert-deps! head deps)
   "HEAD is supposed to be a vertex and deps is supposed to be an alist.
   Returns a list of vertices (turns the alist into a list of vertices, storing them in the db in the process)"
-  (let ((processed-deps (map (lambda (dep)
-                               (processed-dep! head dep))
-                             deps)))  
-    (save (vertex-set head 'dependencies-already-processed? #t))
-    processed-deps))
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((processed-deps (map (lambda (dep)
+                                 (processed-dep! head dep))
+                               deps)))  
+      (save (vertex-set head 'dependencies-already-processed? #t))
+      processed-deps)))
 
-(define (populate-store! package)
+(define (populate-store! package max-level)
+  (let loop ((current-level  package)
+             (next-level     '())
+             (level            1)
+             )
+    ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+      (if (<= level max-level)
+          (match current-level
+            (() 
+             (match next-level
+               (() ;; we have finished !
+                ;; This is what this monstre function is supposed to return
+                level  
+                )
+               ((head . tail)
+                ;; we move to the next level
+                (loop next-level '() (+ level 1)))))
+        
+            ((head . tail)
+             (display (vertex-ref head 'package))
+             (display "\n")
+        
+             (if (seen? head)
+                 (loop tail next-level level)
+                 (loop tail (append next-level
+                                    (insert-deps! head (vertex-ref head 'declared-deps))) level)))))))
+
+(define (sound? package)
+  (match package ((@)                           ;the package does not exists
+                  'the-package-does-not-exist)
+                  ((@ ("error" . error-message)) ;the version does not exists
+                   'the-version-does-not-exist)
+                  ((@ ("code" . error-message ) (a . b))
+                   'GET-is-not-allowed)
+                  (_ #t)))
+
+
+
+
+(define (root-for-populating package)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new req)
+        (get-or-create-vertex 'request package)
+      (insert-new-package! req)))
+  )
+
+;     '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02"))))
+
+
+(define (root-for-graphing package)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new req)
+        (get-or-create-vertex 'package package)
+      req))
+  )
+
+(define (bridgehead list-of-packages levels)
+  ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (populate-store! (map root-for-populating list-of-packages) levels)
+    ;)
+  )
+
+
+
+
+(define (write-graph! package level) 
+  (let ((root-package (root-for-graphing package)))
+    (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+      (export-graph! root-package level))
+    
+    )
+  )
+
+
+(define (export-graph! package max-level)
+
+  (define (seen? store thing)
+    (vhash-assq thing store))
+  
+  (define (seen store thing)
+    (vhash-consq thing #t store))
+
+  (let ((port (open-output-file "../grafo.dot")))
+    (emit-prologue "name" port)
+    
   (let loop ((current-level  (list package))
              (next-level     '())
-             )
+             (store          vlist-null)
+             (level          1))
+    
       (match current-level
         (() 
          (match next-level
            (() ;; we have finished !
             ;; This is what this monstre function is supposed to return
-            'done  
+            (emit-epilogue port)
+              
             )
            ((head . tail)
             ;; we move to the next level
-            (loop next-level '()))))
+            (if (< level max-level)
+                (loop next-level '() store (+ level 1))
+                (emit-epilogue port)
+                ))))
         
         ((head . tail)
-         (display (vertex-ref head 'package))
-         (if (seen? head)
-             (loop tail next-level)
-             (let* ((deps (vertex-ref head 'declared-dependencies))
-                    (deps-as-vertices (insert-deps! head deps))) ;;TODO insert-deps must articulate edges and nodes in the right way.
-               (loop tail (append next-level deps-as-vertices))))))))
-
-
-(define (sound? package)
-  (match package ((@)                           ;the package does not exists
-                  #f)
-                  ((@ ("error" . error-message)) ;the version does not exists
-                  #f)
-                  (_ #t)))
-
-(define (tdp)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (processed-package! '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02"))))
-
-(define (testa-di-ponte)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.0"))))
-      (populate-store! jquery))))
-
-
-(define (write-graph!)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (let ((jquery (processed-package! '("jquery" . "3.1.1"))))
-      (export-graph! jquery))))
-
-
-
-
-(define (export-graph! starting-from)
-
-  (define (seen? store thing)
-    (vhash-assq thing store))
-
-  (define (seen store thing)
-    (vhash-consq thing #t store))
-  
-  (let ((port (open-output-file "../grafo.dot")))
-    (emit-prologue "name" port)
-
-    (let loop ((nodes   (list starting-from))
-               (store    vlist-null))
-      (match nodes
-        (()
-         (emit-epilogue port))
-        ((head . tail)
+         
          (if (seen? store head)
-             (loop tail store)
+             (loop tail next-level store level)
              (let ((deps (dependencies head))
                    (id (node-name head)))
-
+               
                (emit-node id port)
                (for-each (lambda (dependency)
                            (emit-edge id (node-name dependency) port))
                          deps)           
-               (loop (append tail deps) (seen store head)))))))
+               (loop tail (append next-level deps) (seen store head) level)))
+         
+         )))
     (close-port port)))
 
 
 (define (dependencies node)
-  (map get (map end (outgoings (vertex-uid node)))))
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (map get (map end (filter (where? 'label 'depends-on) (outgoings (vertex-uid node)))))))
+
 
 (define (node-name node-as-a-vertex)
   (let ((node-as-a-cons-cell (vertex-ref node-as-a-vertex 'package)))
