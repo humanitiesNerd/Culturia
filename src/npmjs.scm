@@ -21,11 +21,22 @@
 ;               cube))
 
 
-(define (json-fetch url)
+(define (json-fetch-old url)
   "Return a alist representation of the JSON resource URL, or #f on failure."
   (receive (response body)
       (http-get url)
     (read-json (open-input-string body))))
+
+
+(define (json-fetch url)
+  "Return a alist representation of the JSON resource URL, or #f on failure."
+  (catch #t
+    (lambda ()
+      (receive (response body)
+          (http-get url)
+        (read-json (open-input-string body))))
+    (lambda (key . parameters)
+      'nope)))
 
 
 (define *REGISTRY*  "https://registry.npmjs.org/")
@@ -64,25 +75,30 @@
         package)))
 
 (define (extracted-version downloaded-package)
-  (assoc-ref downloaded-package "version"))
-
-
+    (assoc-ref downloaded-package "version"))
 
 (define (insert-new-package! request-vertex)
+  (display "downloading ")
+  (display request-vertex)
+  (newline)
   (let* ((request-as-a-cons-cell (vertex-ref request-vertex 'request)) 
          (p (npm-package request-as-a-cons-cell))
          (name (car request-as-a-cons-cell)) 
          (downloaded-package-soundness-check-result (sound? p)))
     (if (symbol? downloaded-package-soundness-check-result)
-        (create-vertex `((package . package-request)
+        (create-vertex `((package . ,request-as-a-cons-cell)
                          (dependencies-already-processed? . #t)
-                         (broken-package . package-handle)))
+                         (broken-package . ,downloaded-package-soundness-check-result)))
         (let ((actual-version (extracted-version p))
               (deps (children p)))
-          (create-vertex `((package . ,(cons name  actual-version))
-                           (dependencies-already-processed? . #f)
-                           (declared-deps . ,deps)))))))
-
+          (receive (new package)
+              (get-or-create-vertex 'package (cons name actual-version))
+            (if new
+                (save
+                 (vertex-set
+                  (vertex-set package 'dependencies-already-processed? #f)
+                  'declared-deps deps))
+                package))))))
 
 
 (define (processed-dep! head dep-request-as-cons-cell)
@@ -98,7 +114,6 @@
           (let ((package-vertex (requested-package request-vertex)))
             (create-edge head package-vertex '((label . depends-on) ))
             (create-edge head request-vertex '((label . requests)))
-            (create-edge request-vertex package-vertex '((label . yelds)))
             package-vertex)))
     ;)
   )
@@ -110,12 +125,15 @@
   (display "\n")
   (get (end (first (outgoings (vertex-uid request))))))
  
-(define (dependencies node)
-  (map get (map end (outgoings (vertex-uid node)))))
+;(define (dependencies node)
+;  (map get (map end (outgoings (vertex-uid node)))))
 
 
 (define (seen? package-as-vertex)
-  (vertex-ref package-as-vertex 'dependencies-already-processed?))
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (let ((refreshed-vertex (get (vertex-uid package-as-vertex))))
+      (vertex-ref refreshed-vertex 'dependencies-already-processed?)))
+  )
 
 
 (define (insert-deps! head deps)
@@ -162,6 +180,8 @@
                    'the-version-does-not-exist)
                   ((@ ("code" . error-message ) (a . b))
                    'GET-is-not-allowed)
+                  ('nope                      ;http-get raised an exception. God knows why this happened :-/
+                   'nope)
                   (_ #t)))
 
 
@@ -174,15 +194,7 @@
       (insert-new-package! req)))
   )
 
-;     '("shared-karma-files" . "git://github.com/karma-runner/shared-karma-files.git#82ae8d02"))))
 
-
-(define (root-for-graphing package)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (receive (new req)
-        (get-or-create-vertex 'package package)
-      req))
-  )
 
 (define (bridgehead list-of-packages levels)
   ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
@@ -190,96 +202,80 @@
     ;)
   )
 
+;(bridgehead (unexplored-vertices) 1)
+;(bridgehead (list '("typescript" . "2.1.4")) 1)
+
+(define (unexplored-vertices)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list  
+     (traversi-map
+      (lambda (id) (vertex-ref (get id) 'package)) 
+      (traversi-filter 
+       (lambda (vertex-id)
+         (let ((vertex (get vertex-id)))
+           (and
+            (not (vertex-ref vertex 'dependencies-already-processed?))
+            (vertex-ref vertex 'package))))
+       (vertices)))
+     )))
 
 
 
-(define (write-graph! package level) 
-  (let ((root-package (root-for-graphing package)))
-    (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-      (export-graph! root-package level))
-    
+
+
+
+
+
+
+
+
+
+(define (prov)
+  (filter (lambda (x)
+           (equal? x '("jison" . #f)))
+          (unexplored-vertices)))
+
+(define (dependants node);jison #f
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+          (map get (map start (car (map incomings (traversi->list
+                               (traversi-filter 
+                                (lambda (vertex-id)
+                                  (let ((vertex (get vertex-id)))
+                                    (and
+                                     (not (vertex-ref vertex 'dependencies-already-processed?))
+                                     (equal? '("jison" . #f) (vertex-ref vertex 'package)))))
+                                (vertices)))))))))
+
+;TODO dependencies of Pogo
+;(define (dependencies node)
+;  (map get (map end (outgoings (vertex-uid node)))))
+
+;Or do I just filter packages with a #f version ?
+
+(define (dependants2);jison #f
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+                 (traversi-map get
+                               (traversi-filter 
+                                (lambda (vertex-id)
+                                  (let ((vertex (get vertex-id)))
+                                    (and
+                                     (vertex-ref vertex 'package)
+                                     (not (cdr (vertex-ref vertex 'package))))))
+                                (vertices)))))
+  )
+  
+  
+  
+(define (dependants3 l)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (for-each (lambda (vertex-package)
+                (save (vertex-set
+                       (vertex-set vertex-package 'general-package #t)
+                       'dependencies-alreay-processed? #t)))
+              l)
     )
   )
 
 
-(define (export-graph! package max-level)
 
-  (define (seen? store thing)
-    (vhash-assq thing store))
-  
-  (define (seen store thing)
-    (vhash-consq thing #t store))
-
-  (let ((port (open-output-file "../grafo.dot")))
-    (emit-prologue "name" port)
-    
-  (let loop ((current-level  (list package))
-             (next-level     '())
-             (store          vlist-null)
-             (level          1))
-    
-      (match current-level
-        (() 
-         (match next-level
-           (() ;; we have finished !
-            ;; This is what this monstre function is supposed to return
-            (emit-epilogue port)
-              
-            )
-           ((head . tail)
-            ;; we move to the next level
-            (if (< level max-level)
-                (loop next-level '() store (+ level 1))
-                (emit-epilogue port)
-                ))))
-        
-        ((head . tail)
-         
-         (if (seen? store head)
-             (loop tail next-level store level)
-             (let ((deps (dependencies head))
-                   (id (node-name head)))
-               
-               (emit-node id port)
-               (for-each (lambda (dependency)
-                           (emit-edge id (node-name dependency) port))
-                         deps)           
-               (loop tail (append next-level deps) (seen store head) level)))
-         
-         )))
-    (close-port port)))
-
-
-(define (dependencies node)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (map get (map end (filter (where? 'label 'depends-on) (outgoings (vertex-uid node)))))))
-
-
-(define (node-name node-as-a-vertex)
-  (let ((node-as-a-cons-cell (vertex-ref node-as-a-vertex 'package)))
-    (match node-as-a-cons-cell
-      ((name . version)
-       (string-append name "~~~" version))))
-  )
-
-(define (emit-prologue name port)
-  (format port "digraph \"Guix ~a\" {\n"
-          name))
-(define (emit-epilogue port)
-  (display "\n}\n" port))
-(define (emit-node id port)
-  (format port "  \"~a\" [label = \"~a\", shape = box, fontname = Helvetica];~%"
-          id id))
-(define (emit-edge id1 id2 port)
-  (format port "  \"~a\" -> \"~a\" [color = ~a];~%"
-          id1 id2 (pop-color id1)))
-
-(define %colors
-  ;; See colortbl.h in Graphviz.
-  #("red" "magenta" "blue" "cyan3" "darkseagreen"
-    "peachpuff4" "darkviolet" "dimgrey" "darkgoldenrod"))
-
-(define (pop-color hint)
-  "Return a Graphviz color based on HINT, an arbitrary object."
-  (let ((index (hash hint (vector-length %colors))))
-    (vector-ref %colors index)))
