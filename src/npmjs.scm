@@ -89,15 +89,26 @@
         (create-vertex `((package . ,request-as-a-cons-cell)
                          (dependencies-already-processed? . #t)
                          (broken-package . ,downloaded-package-soundness-check-result)))
-        (let ((actual-version (extracted-version p))
-              (deps (children p)))
+        (let ((actual-version (extracted-version p)))
+          ;; now, it's possible that actual-version is #f
+          ;; in fact, declared dependencies like ("pakage-name" . "") DO exist, in npm.
+          ;; In that case the request to the registry resolves to the general package, not the single version,
+          ;; so the extraction of the actual-version results in #f.
+          ;; In that case we store the result of such a request in the db with the cell ('general-package? . #t)
+          ;; And this accounts for the SECOND type of package vertex in our graph
           (receive (new package)
               (get-or-create-vertex 'package (cons name actual-version))
             (if new
-                (save
-                 (vertex-set
-                  (vertex-set package 'dependencies-already-processed? #f)
-                  'declared-deps deps))
+                (if actual-version
+                    (let ((deps (children p))) 
+                      (save
+                       (vertex-set
+                        (vertex-set package 'dependencies-already-processed? #f)
+                        'declared-deps deps)))
+                    (save
+                     (vertex-set
+                      (vertex-set package 'dependencies-already-processed? #t)
+                      'general-package #t)))
                 package))))))
 
 
@@ -137,7 +148,7 @@
 
 
 (define (insert-deps! head deps)
-  "HEAD is supposed to be a vertex and deps is supposed to be an alist.
+  "HEAD is supposed to be a vertex and DEPS is supposed to be an alist with cells like (\"package-name\" . \"package-version\" ).
   Returns a list of vertices (turns the alist into a list of vertices, storing them in the db in the process)"
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (let ((processed-deps (map (lambda (dep)
@@ -174,6 +185,10 @@
                                     (insert-deps! head (vertex-ref head 'declared-deps))) level)))))))
 
 (define (sound? package)
+  "If PACKAGE is sound, return #t
+   if PACKAGE is not sond, return a symbol
+   Probably it could be one symbol only, there's no point in 
+   differentiating among different error conditions. Not sure about this. We'll see"
   (match package ((@)                           ;the package does not exists
                   'the-package-does-not-exist)
                   ((@ ("error" . error-message)) ;the version does not exists
@@ -204,6 +219,14 @@
 
 ;(bridgehead (unexplored-vertices) 1)
 ;(bridgehead (list '("typescript" . "2.1.4")) 1)
+
+
+
+
+
+
+
+
 
 (define (unexplored-vertices)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
