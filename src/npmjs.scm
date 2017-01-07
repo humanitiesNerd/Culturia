@@ -10,7 +10,10 @@
   #:use-module (web uri)
   #:use-module (grf3)
   #:use-module (wiredtigerz)
-  #:use-module (ukv)  
+  #:use-module (ukv)
+  #:use-module (srfi srfi-9)  ;; records
+  #:use-module (srfi srfi-9 gnu)  ;; set-record-type-printer! and set-field. I added these for una tantum operations
+
   ;#:use-module (guix records)  
   ;#:use-module (srfi srfi-9 gnu)
   #:export (npm-package jquery)
@@ -108,7 +111,7 @@
                     (save
                      (vertex-set
                       (vertex-set package 'dependencies-already-processed? #t)
-                      'general-package #t)))
+                      'general-package? #t)))
                 package))))))
 
 
@@ -238,6 +241,7 @@
          (let ((vertex (get vertex-id)))
            (and
             (not (vertex-ref vertex 'dependencies-already-processed?))
+            (not (vertex-ref vertex 'general-package?))
             (vertex-ref vertex 'package))))
        (vertices)))
      )))
@@ -250,6 +254,60 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;; I discovered that I had stored about 16 packages with no version, like ("package-name" . #f)
+;; I had to explore the graph in order to assess the problem,
+;; then I had to fetch them and destructively update them before continuing.
+;; I used (dependants3 (dependants2)) in the REPL to update them
+;; I used the other procedures below to assess the problem
+
+(define (starting-point? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (and
+     (not (vertex-ref vertex 'dependencies-already-processed?))
+     (not (vertex-ref vertex 'general-package))
+     (vertex-ref vertex 'package))))
+
+(define (general-package? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (vertex-ref vertex 'general-package?)
+    ))
+
+
+
+(define (select-vertices proc)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list  
+     (traversi-map
+      (lambda (id) (assoc-remove! (vertex-assoc (get id)) 'declared-deps)) 
+      (traversi-filter 
+       (lambda (vertex-id)
+         (proc vertex-id))
+         (vertices)))
+     )))
+
+(define (get-package package-as-cons-cell)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new package)
+        (get-or-create-vertex 'package package-as-cons-cell)
+      ;(assoc-remove! (vertex-assoc package) 'declared-deps)
+      package
+      )))
 
 
 
@@ -269,11 +327,9 @@
                                      (equal? '("jison" . #f) (vertex-ref vertex 'package)))))
                                 (vertices)))))))))
 
-;TODO dependencies of Pogo
-;(define (dependencies node)
-;  (map get (map end (outgoings (vertex-uid node)))))
 
-;Or do I just filter packages with a #f version ?
+
+
 
 (define (dependants2);jison #f
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
@@ -293,12 +349,12 @@
 (define (dependants3 l)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (for-each (lambda (vertex-package)
-                (save (vertex-set
-                       (vertex-set vertex-package 'general-package #t)
-                       'dependencies-alreay-processed? #t)))
+                (let* ((step1 (vertex-assoc vertex-package))
+                       (step2 (assoc-set! step1 'dependencies-already-processed? #t))
+                       (updated-vertex (set-field vertex-package (vertex-assoc) step2)))
+                (save
+                 (vertex-set updated-vertex 'general-package? #t))))
               l)
     )
   )
-
-
 
