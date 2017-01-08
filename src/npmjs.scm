@@ -329,6 +329,11 @@
   (let* ((vertex (get vertex-id)))
     (vertex-ref vertex 'request)))
 
+(define (package? vertex-id)
+  (let* ((vertex (get vertex-id)))
+    (vertex-ref vertex 'package)))
+
+
 (define (no-outgoings? vertex-id)
   (let ((vertex (get vertex-id)))
     (let ((outs (outgoings vertex)))
