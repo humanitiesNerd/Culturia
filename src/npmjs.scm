@@ -115,22 +115,6 @@
                 package))))))
 
 
-(define (processed-dep! head dep-request-as-cons-cell)
-  ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (receive (new request-vertex)
-        (get-or-create-vertex 'request dep-request-as-cons-cell)
-      (if new
-          (let ((package-vertex (insert-new-package! request-vertex)))
-            (create-edge head package-vertex '((label . depends-on) ))
-            (create-edge head request-vertex '((label . requests)))
-            (create-edge request-vertex package-vertex '((label . yelds)))
-            package-vertex)
-          (let ((package-vertex (requested-package request-vertex)))
-            (create-edge head package-vertex '((label . depends-on) ))
-            (create-edge head request-vertex '((label . requests)))
-            package-vertex)))
-    ;)
-  )
 
 
 (define (requested-package request)
@@ -148,6 +132,23 @@
     (let ((refreshed-vertex (get (vertex-uid package-as-vertex))))
       (vertex-ref refreshed-vertex 'dependencies-already-processed?)))
   )
+
+(define (processed-dep! head dep-request-as-cons-cell)
+  (receive (new request-vertex)
+      (get-or-create-vertex 'request dep-request-as-cons-cell)
+    (if new
+        ;; TODO there are 10.455 request nodes wiith NO incoming edges and NO outgoing edges.
+        ;; on a total on 15.528 nodes.
+        ;; what te hell is going on here ?
+        (let ((package-vertex (insert-new-package! request-vertex)))
+          (create-edge head package-vertex '((label . depends-on) ))
+          (create-edge head request-vertex '((label . requests)))
+          (create-edge request-vertex package-vertex '((label . yelds)))
+          package-vertex)
+        (let ((package-vertex (requested-package request-vertex)))
+          (create-edge head package-vertex '((label . depends-on) ))
+          (create-edge head request-vertex '((label . requests)))
+          package-vertex))))
 
 
 (define (insert-deps! head deps)
@@ -289,8 +290,18 @@
     ))
 
 
+(define (depends-on? vertex-id)
+  (let* ((vertex (get vertex-id))
+         (deps (vertex-ref vertex 'declared-deps)))
+    (if deps
+        (if (find (lambda (x) (equal? x '("rc" . "1.1.6"))) deps)
+            #t
+            #f)
+        #f)
+    )
+  )
 
-(define (select-vertices proc)
+(define (select-packages proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list  
      (traversi-map
@@ -301,6 +312,34 @@
          (vertices)))
      )))
 
+(define (select-requests request? proc)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-map (lambda (vertex-id) (vertex-ref (get vertex-id) 'request ))
+     (traversi-filter
+      proc
+      (traversi-filter
+       request?
+       (vertices)))))))
+
+;(select-requests request? no-outgoings?)
+
+
+(define (request? vertex-id)
+  (let* ((vertex (get vertex-id)))
+    (vertex-ref vertex 'request)))
+
+(define (no-outgoings? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (let ((outs (outgoings vertex)))
+      (= (length outs) 0))))
+
+(define (no-incomings? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (let ((ins (incomings vertex)))
+      (= (length ins) 0))))
+
+
 (define (get-package package-as-cons-cell)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (receive (new package)
@@ -309,12 +348,20 @@
       package
       )))
 
+(define (get-request request-as-cons-cell)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new request)
+        (get-or-create-vertex 'request request-as-cons-cell)
+      request
+      )))
 
 
 (define (prov)
   (filter (lambda (x)
            (equal? x '("jison" . #f)))
           (unexplored-vertices)))
+
+
 
 (define (dependants node);jison #f
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
