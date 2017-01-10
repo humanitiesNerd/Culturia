@@ -2,7 +2,7 @@
 
 Every dependency is represented in the graph as in this picture
 
-![example dependency depicted](for-the-manuual.svg)
+![example dependency depicted](for-the-manual.svg)
 
 This is because nodejs packages declare dependencies with version numbers as, for example
 ^1.4.0
@@ -15,7 +15,7 @@ So I store the unpredictable pakage request, then I issue the request to registr
 
 In the following iterations, should the same request be encountered, I can avoid redownloading the same package.
 
-Too bad, should a _different_ request yeld te same pakage thhat will have to be downloaded again, becauuse I can't know that in advance :-/
+Too bad, should a _different_ request yeld te same pakage, that will have to be downloaded again, because I can't know that in advance :-/
 
 This might seem exagerated, but it's not. Downloads are sloooooooow and after hours of waiting you kinda resent the fact that the same package has to be downloaded over and over again.
 
