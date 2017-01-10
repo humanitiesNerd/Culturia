@@ -14,9 +14,9 @@ This is because nodejs packages declare dependencies with version numbers as, fo
 
 and so on. The ways are endless
 
-So I store the unpredictable pakage request and this produces the request node and the "requests" edge. 
+So I store the unpredictable pakage request and this produces the "package request" node and the "requests" edge. 
 
-Then I issue the request to registry.npms.com and I store the even more unpredictably yelded pakage (the "yelds" edge and the "depends-on" edge
+Then I issue the request to registry.npms.com and I store the even more unpredictably yelded pakage (the "yelds" edge and the "depends-on" edge)
 
 In the following iterations, should the same request be encountered, I can avoid redownloading the same package.
 
