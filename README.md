@@ -20,7 +20,7 @@ Then I issue the request to registry.npms.com and I store the even more unpredic
 
 In the following iterations, should the same request be encountered, I can avoid redownloading the same package.
 
-Too bad, should a _different_ request yeld te same pakage, that will have to be downloaded again, because I can't know that in advance :-/
+Too bad, should a _different_ request yeld the same pakage, that will have to be downloaded again, because I can't know that in advance :-/
 
 This might seem exagerated, but it's not. Downloads are sloooooooow and after hours of waiting you kinda resent the fact that the same package has to be downloaded over and over again.
 
