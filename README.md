@@ -1,5 +1,8 @@
 # Short notes on npms.scm
 
+
+
+
 Every dependency is represented in the graph as in this picture
 
 ![example dependency depicted](for-the-manual.jpg)
