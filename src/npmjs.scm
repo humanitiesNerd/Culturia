@@ -160,7 +160,7 @@
              (next-level     '())
              (level            1)
              )
-    ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+   
       (if (<= level max-level)
           (match current-level
             (() 
@@ -281,15 +281,20 @@
 ;; with no incomiing and outgoing edges.
 
 
-;; to reproduce the current problem:
+;; to reproduce the current problem
+;; starting wit han empty datastore, run in order:
+
 ;; (bridgehead '(("jquery" . "3.1.1")) 1)
 ;; (select-vertices request? no-incomings?)
 ;; (select-vertices request? no-outgoings?)
 ;; (select-vertices package? no-incomings?)
 ;; (select-vertices package? no-outgoings?)
+;; this should show that isolated requests get stored.
+;; maybe isolated packages too ? I don't know
 
-;; I used the functions below to assess the problem
-;; I couldn't come up with a reason until now
+;; I used the functions below to assess the problem.
+
+;; I couldn't come up with a reason why this happens until now.
 ;; it seems like create-edge doesn't work :-/
 
 (define (select-packages proc)
