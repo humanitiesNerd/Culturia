@@ -5,8 +5,11 @@ Every dependency is represented in the graph as in this picture
 ![example dependency depicted](for-the-manual.jpg)
 
 This is because nodejs packages declare dependencies with version numbers as, for example
-^1.4.0
+
+\^1.4.0
+
 ~1.4.0
+
 ~1.4
 
 and so on. The ways are endless
