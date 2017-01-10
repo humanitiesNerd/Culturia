@@ -1,3 +1,25 @@
+# Short notes on npms.scm
+
+Every dependency is represented in the graph as in this picture
+
+![example dependency depicted](for-the-manuual.svg)
+
+This is because nodejs packages declare dependencies with version numbers as, for example
+^1.4.0
+~1.4.0
+~1.4
+
+and so on. The ways are endless
+
+So I store the unpredictable pakage request, then I issue the request to registry.npms.com and I store the even more unpredictably yelded pakage
+
+In the following iterations, should the same request be encountered, I can avoid redownloading the same package.
+
+Too bad, should a _different_ request yeld te same pakage thhat will have to be downloaded again, becauuse I can't know that in advance :-/
+
+This might seem exagerated, but it's not. Downloads are sloooooooow and after hours of waiting you kinda resent the fact that the same package has to be downloaded over and over again.
+
+
 # Culturia
 
 ![Babel tower](https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Tower_of_Babel_cropped_square.jpg/480px-Tower_of_Babel_cropped_square.jpg)
