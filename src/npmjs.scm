@@ -95,7 +95,7 @@
           ;; so the extraction of the actual-version results in #f.
           ;; In that case we store the result of such a request in the db with the cell ('general-package? . #t)
           ;; And this accounts for the SECOND type of package vertex in our graph
-          ;; see line no 70 in this file
+          ;; see line no 370 in this file
           (receive (new package)
               (get-or-create-vertex 'package (cons name actual-version))
             (if new
