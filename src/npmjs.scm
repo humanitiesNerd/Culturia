@@ -12,16 +12,12 @@
   #:use-module (wiredtigerz)
   #:use-module (ukv)
   #:use-module (srfi srfi-9)  ;; records
-  #:use-module (srfi srfi-9 gnu)  ;; set-record-type-printer! and set-field. I added these for una tantum operations
-
+  #:use-module (srfi srfi-9 gnu);; set-record-type-printer! and set-field.   
   ;#:use-module (guix records)  
   ;#:use-module (srfi srfi-9 gnu)
   #:export (npm-package jquery)
   )
 
-;(define-module (test_module)
-;    #: export (square
-;               cube))
 
 
 (define (json-fetch-old url)
@@ -123,9 +119,6 @@
   (display "\n")
   (get (end (first (outgoings (vertex-uid request))))))
  
-;(define (dependencies node)
-;  (map get (map end (outgoings (vertex-uid node)))))
-
 
 (define (seen? package-as-vertex)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
@@ -133,13 +126,14 @@
       (vertex-ref refreshed-vertex 'dependencies-already-processed?)))
   )
 
+
 (define (processed-dep! head dep-request-as-cons-cell)
   (receive (new request-vertex)
       (get-or-create-vertex 'request dep-request-as-cons-cell)
     (if new
-        ;; TODO there are 10.455 request nodes wiith NO incoming edges and NO outgoing edges.
+        ;; TODO there are 10.455 request nodes with NO incoming edges and NO outgoing edges.
         ;; on a total on 15.528 nodes.
-        ;; what te hell is going on here ?
+        ;; what the hell is going on here ?
         (let ((package-vertex (insert-new-package! request-vertex)))
           (create-edge head package-vertex '((label . depends-on) ))
           (create-edge head request-vertex '((label . requests)))
@@ -248,35 +242,6 @@
      )))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;; I discovered that I had stored about 16 packages with no version, like ("package-name" . #f)
-;; I had to explore the graph in order to assess the problem,
-;; then I had to fetch them and destructively update them before continuing.
-;; I used (dependants3 (dependants2)) in the REPL to update them
-;; I used the other procedures below to assess the problem
-
 (define (starting-point? vertex-id)
   (let ((vertex (get vertex-id)))
     (and
@@ -290,16 +255,42 @@
     ))
 
 
-(define (depends-on? vertex-id)
-  (let* ((vertex (get vertex-id))
-         (deps (vertex-ref vertex 'declared-deps)))
-    (if deps
-        (if (find (lambda (x) (equal? x '("rc" . "1.1.6"))) deps)
-            #t
-            #f)
-        #f)
-    )
-  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;; I discovered that lots of request vertices get stored as isolated, that is
+;; with no incomiing and outgoing edges.
+
+
+;; to reproduce the current problem:
+;; (bridgehead '(("jquery" . "3.1.1")) 1)
+;; (select-vertices request? no-incomings?)
+;; (select-vertices request? no-outgoings?)
+;; (select-vertices package? no-incomings?)
+;; (select-vertices package? no-outgoings?)
+
+;; I used the functions below to assess the problem
+;; I couldn't come up with a reason until now
+;; it seems like create-edge doesn't work :-/
 
 (define (select-packages proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
@@ -312,17 +303,15 @@
          (vertices)))
      )))
 
-(define (select-requests request? proc)
+(define (select-vertices is-what? proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list
      (traversi-map (lambda (vertex-id) (vertex-ref (get vertex-id) 'request ))
      (traversi-filter
       proc
       (traversi-filter
-       request?
+       is-what?
        (vertices)))))))
-
-;(select-requests request? no-outgoings?)
 
 
 (define (request? vertex-id)
@@ -345,44 +334,41 @@
       (= (length ins) 0))))
 
 
-(define (get-package package-as-cons-cell)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (receive (new package)
-        (get-or-create-vertex 'package package-as-cons-cell)
-      ;(assoc-remove! (vertex-assoc package) 'declared-deps)
-      package
-      )))
-
-(define (get-request request-as-cons-cell)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (receive (new request)
-        (get-or-create-vertex 'request request-as-cons-cell)
-      request
-      )))
-
-
-(define (prov)
-  (filter (lambda (x)
-           (equal? x '("jison" . #f)))
-          (unexplored-vertices)))
-
-
-
-(define (dependants node);jison #f
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-          (map get (map start (car (map incomings (traversi->list
-                               (traversi-filter 
-                                (lambda (vertex-id)
-                                  (let ((vertex (get vertex-id)))
-                                    (and
-                                     (not (vertex-ref vertex 'dependencies-already-processed?))
-                                     (equal? '("jison" . #f) (vertex-ref vertex 'package)))))
-                                (vertices)))))))))
+(define (depends-on? vertex-id)
+  "I wrote this funtion to see which package depended on (\"rc\". \"1.1.6\"), 
+   whose corresponding request vertex is isolated (no incoming edges and no outgoing edges),
+   when it should have had one incoming edge and one outgoing edge.
+   I know that the #f and #t in the ifs look stupid."
+  (let* ((vertex (get vertex-id))
+         (deps (vertex-ref vertex 'declared-deps)))
+    (if deps
+        (if (find (lambda (x) (equal? x '("rc" . "1.1.6"))) deps)
+            #t
+            #f)
+        #f)
+    )
+  )
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+;; I discovered that I had stored about 16 packages with no version, like ("package-name" . #f)
+;; I had to explore the graph in order to assess the problem,
+;; then I had to fetch them and destructively update them before continuing.
+;; I used (dependants3 (dependants2)) in the REPL to update them
+;; I used the other procedures below to assess the problem
+;; I marked those as general packages (like (general-package? . #t))
+;; as opposed to a versioned package
 (define (dependants2);jison #f
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list
@@ -410,3 +396,18 @@
     )
   )
 
+
+
+(define (get-package package-as-cons-cell)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new package)
+        (get-or-create-vertex 'package package-as-cons-cell)
+      package
+      )))
+
+(define (get-request request-as-cons-cell)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (receive (new request)
+        (get-or-create-vertex 'request request-as-cons-cell)
+      request
+      )))
