@@ -15,6 +15,14 @@ This is because nodejs packages declare dependencies with version numbers as, fo
 
 ~1.4
 
+1.4.0
+
+1.4.x
+
+1.4
+
+
+
 and so on. The ways are endless
 
 So I store the unpredictable pakage request and this produces the "package request" node and the "requests" edge. 
