@@ -1,4 +1,4 @@
-# Short notes on npms.scm
+# Short notes on npmjs.scm
 
 
 
