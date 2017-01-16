@@ -277,15 +277,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
 ;; I discovered that lots of request vertices get stored as isolated, that is
 ;; with no incomiing and outgoing edges.
 
@@ -394,6 +385,9 @@
   (and
    (no-incomings? vertex-id)
    (no-outgoings? vertex-id)))
+
+
+
 
 (define (depends-on? vertex-id)
   "I wrote this funtion to see which package depended on (\"rc\". \"1.1.6\"), 
