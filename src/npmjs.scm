@@ -300,8 +300,16 @@
 ;; (select-vertices package? no-outgoings?)
 ;; (select-vertices package? completely-isolated?)
 ;; (select-vertices package? any-outgoing?)
+;; (select-vertices package? any-incoming?)
+;; (select-edges no-start?)
+;; (select-edges no-end?)
 
-;; this should show that no edge gets written :-/
+;; Ok: there are NO edges with no start or no end.
+;; BUT there are NO packages with incoming or outgoing edges
+
+;; This is not possible.
+
+;; Are my queries wrong ?
 
 ;; I used the functions below to assess the problem.
 
@@ -336,6 +344,22 @@
                      (vertices)))))))
 
 
+(define (select-edges proc)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-filter
+      proc
+      (edges)))))
+
+(define (no-start? edge-id)
+  (let ((record (get edge-id)))
+    (not (edge-start record))))
+
+(define (no-end? edge-id)
+  (let ((record (get edge-id)))
+    (not (edge-end record))))
+
+
 (define (request? vertex-id)
   (let* ((vertex (get vertex-id)))
     (vertex-ref vertex 'request)))
@@ -354,6 +378,11 @@
   (let ((vertex (get vertex-id)))
     (let ((outs (outgoings vertex)))
       (> (length outs) 0))))
+
+(define (any-incoming? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (let ((ins (incomings vertex)))
+      (> (length ins) 0))))
 
 
 (define (no-incomings? vertex-id)
