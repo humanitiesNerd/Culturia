@@ -298,24 +298,17 @@
 ;; (select-vertices request? no-outgoings?)
 ;; (select-vertices package? no-incomings?)
 ;; (select-vertices package? no-outgoings?)
-;; this should show that isolated requests get stored.
-;; maybe isolated packages too ? I don't know
+;; (select-vertices package? completely-isolated?)
+;; (select-vertices package? any-outgoing?)
+
+;; this should show that no edge gets written :-/
 
 ;; I used the functions below to assess the problem.
 
 ;; I couldn't come up with a reason why this happens until now.
 ;; it seems like create-edge doesn't work :-/
 
-(define (select-packages proc)
-  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (traversi->list  
-     (traversi-map
-      (lambda (id) (assoc-remove! (vertex-assoc (get id)) 'declared-deps)) 
-      (traversi-filter 
-       (lambda (vertex-id)
-         (proc vertex-id))
-         (vertices)))
-     )))
+
 (define (extracted-cons-cell vertex)
   (let ((package (vertex-ref vertex 'package))
         (request (vertex-ref vertex 'request)))
@@ -357,11 +350,21 @@
     (let ((outs (outgoings vertex)))
       (= (length outs) 0))))
 
+(define (any-outgoing? vertex-id)
+  (let ((vertex (get vertex-id)))
+    (let ((outs (outgoings vertex)))
+      (> (length outs) 0))))
+
+
 (define (no-incomings? vertex-id)
   (let ((vertex (get vertex-id)))
     (let ((ins (incomings vertex)))
       (= (length ins) 0))))
 
+(define (completely-isolated? vertex-id)
+  (and
+   (no-incomings? vertex-id)
+   (no-outgoings? vertex-id)))
 
 (define (depends-on? vertex-id)
   "I wrote this funtion to see which package depended on (\"rc\". \"1.1.6\"), 
