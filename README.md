@@ -35,6 +35,13 @@ Too bad, should a _different_ request yeld the same pakage, that will have to be
 
 This might seem exagerated, but it's not. Downloads are sloooooooow and after hours of waiting you kinda resent the fact that the same package has to be downloaded over and over again.
 
+Now, the cuurrent problem is that sometimes the graph printng stops because some package or request node vertices havo NO outgoing edges. And no incoming edges :-/
+
+On another side, thhere are NO edges without start or end
+
+I don't uunderstand what's going on
+
+For details, see the comments on line 284 of npmjs.scm
 
 # Culturia
 
