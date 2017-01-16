@@ -35,7 +35,7 @@ Too bad, should a _different_ request yeld the same pakage, that will have to be
 
 This might seem exagerated, but it's not. Downloads are sloooooooow and after hours of waiting you kinda resent the fact that the same package has to be downloaded over and over again.
 
-Now, the current problem is that sometimes the graph printng stops because some package or request node vertices havo NO outgoing edges. And no incoming edges :-/
+Now, the current problem is that sometimes the graph printing stops because some package or request node vertices havo NO outgoing edges. And no incoming edges :-/
 
 On another side, thhere are NO edges without start or end
 
