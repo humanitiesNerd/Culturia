@@ -20,6 +20,14 @@
 
 
 
+;(define* (dynamic-link* #:optional library-name)
+;  (let ((shared-object (if library-name (dynamic-link library-name)
+;                           (dynamic-link))))
+;    (lambda (return-value function-name . arguments)
+;      (let ((function (dynamic-func function-name shared-object)))
+;        (pointer->procedure return-value function arguments)))))
+
+
 (define (json-fetch-old url)
   "Return a alist representation of the JSON resource URL, or #f on failure."
   (receive (response body)
@@ -308,16 +316,31 @@
          (proc vertex-id))
          (vertices)))
      )))
+(define (extracted-cons-cell vertex)
+  (let ((package (vertex-ref vertex 'package))
+        (request (vertex-ref vertex 'request)))
+    (if package
+        (match package
+          ((name . version)
+           (if (string? version)
+               package
+               (cons name ""))))   
+        (match request
+          ((name . version)
+           (if (string? version)
+               request
+               (cons name "")))))))
+
 
 (define (select-vertices is-what? proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list
-     (traversi-map (lambda (vertex-id) (vertex-ref (get vertex-id) 'request ))
-     (traversi-filter
-      proc
-      (traversi-filter
-       is-what?
-       (vertices)))))))
+     (traversi-map (lambda (id) (extracted-cons-cell (get id)))
+                   (traversi-filter
+                    proc
+                    (traversi-filter
+                     is-what?
+                     (vertices)))))))
 
 
 (define (request? vertex-id)
