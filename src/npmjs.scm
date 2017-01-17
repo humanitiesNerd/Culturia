@@ -277,9 +277,14 @@
 
 
 
+;; ok, I found it. The procedures "outgoings" and "incomings" take a string, not a record :-/
+;; if called on a record, they don't utter anything and  happily return a wrong value :-/
+
+
+
 ;; I discovered that lots of request vertices get stored as isolated, that is
 ;; with no incomiing and outgoing edges.
-
+;; Now it's a matter of verifiyng the old data I had collected
 
 ;; to reproduce the current problem
 ;; starting wit han empty datastore, run in order:
@@ -334,6 +339,16 @@
                      is-what?
                      (vertices)))))))
 
+(define (select-vertices2 is-what? proc)
+  (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+    (traversi->list
+     (traversi-map get
+                   (traversi-filter
+                    proc
+                    (traversi-filter
+                     is-what?
+                     (vertices)))))))
+
 
 (define (select-edges proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
@@ -361,25 +376,21 @@
 
 
 (define (no-outgoings? vertex-id)
-  (let ((vertex (get vertex-id)))
-    (let ((outs (outgoings vertex)))
-      (= (length outs) 0))))
+  (let ((outs (outgoings vertex-id)))
+    (= (length outs) 0)))
 
 (define (any-outgoing? vertex-id)
-  (let ((vertex (get vertex-id)))
-    (let ((outs (outgoings vertex)))
-      (> (length outs) 0))))
+  (let ((outs (outgoings vertex-id)))
+    (> (length outs) 0)))
 
 (define (any-incoming? vertex-id)
-  (let ((vertex (get vertex-id)))
-    (let ((ins (incomings vertex)))
-      (> (length ins) 0))))
+  (let ((ins (incomings vertex-id)))
+    (> (length ins) 0)))
 
 
 (define (no-incomings? vertex-id)
-  (let ((vertex (get vertex-id)))
-    (let ((ins (incomings vertex)))
-      (= (length ins) 0))))
+  (let ((ins (incomings vertex-id)))
+    (= (length ins) 0)))
 
 (define (completely-isolated? vertex-id)
   (and

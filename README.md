@@ -37,9 +37,7 @@ This might seem exagerated, but it's not. Downloads are sloooooooow and after ho
 
 Now, the current problem is that sometimes the graph printing stops because some package or request node vertices havo NO outgoing edges. And no incoming edges :-/
 
-On another side, thhere are NO edges without start or end
-
-I don't understand what's going on
+That's because the functions retrieving incoming and outgoing edges have type problems, but instead of raising exceptions, they happily return wrong values.
 
 For details, see the comments on line 284 of npmjs.scm
 
