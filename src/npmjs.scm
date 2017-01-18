@@ -255,7 +255,7 @@
   (let ((vertex (get vertex-id)))
     (and
      (not (vertex-ref vertex 'dependencies-already-processed?))
-     (not (vertex-ref vertex 'general-package))
+     (not (vertex-ref vertex 'general-package?))
      (vertex-ref vertex 'package))))
 
 (define (general-package? vertex-id)
@@ -317,16 +317,9 @@
   (let ((package (vertex-ref vertex 'package))
         (request (vertex-ref vertex 'request)))
     (if package
-        (match package
-          ((name . version)
-           (if (string? version)
-               package
-               (cons name ""))))   
-        (match request
-          ((name . version)
-           (if (string? version)
-               request
-               (cons name "")))))))
+        package
+        request)))   
+               
 
 
 (define (select-vertices is-what? proc)
@@ -350,12 +343,32 @@
                      (vertices)))))))
 
 
+(define (fix-false-version vertex)
+  (let ((cons-cell (vertex-ref vertex 'package)))
+    (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
+      (save
+       (vertex-set
+        (vertex-set
+         (vertex-set vertex
+                     'package (cons (car cons-cell) ""))
+         'dependencies-already-processed? #t)
+        'general-package? #t)))))
+
+(define (fix)
+  (map fix-false-version (select-vertices2 package? false-version?)))
+
 (define (select-edges proc)
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list
      (traversi-filter
       proc
       (edges)))))
+
+(define (false-version? id)
+  (let* ((vertex (get id))
+         (cons-cell (extracted-cons-cell vertex)))
+    (not (cdr cons-cell))))
+    
 
 (define (no-start? edge-id)
   (let ((record (get edge-id)))
