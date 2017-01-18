@@ -12,7 +12,11 @@
   #:use-module (wiredtigerz)
   #:use-module (ukv)
   #:use-module (srfi srfi-9)  ;; records
-  #:use-module (srfi srfi-9 gnu);; set-record-type-printer! and set-field.   
+  #:use-module (srfi srfi-9 gnu);; set-record-type-printer! and set-field.
+  #:use-module (system repl repl)
+  #:use-module (system repl debug)
+
+
   ;#:use-module (guix records)  
   ;#:use-module (srfi srfi-9 gnu)
   #:export (npm-package jquery)
@@ -144,10 +148,17 @@
         ;; on a total on 15.528 nodes.
         ;; what the hell is going on here ?
         (let ((package-vertex (insert-new-package! request-vertex)))
-          (create-edge head package-vertex '((label . depends-on) ))
-          (create-edge head request-vertex '((label . requests)))
-          (create-edge request-vertex package-vertex '((label . yelds)))
-          package-vertex)
+          (let ((edge1 (create-edge head package-vertex '((label . depends-on))))
+                (edge2 (create-edge head request-vertex '((label . requests))))
+                (edge3 (create-edge request-vertex package-vertex '((label . yelds)))))
+            (display "from request to package ")
+            (display (edge-start edge3))
+            (display " => ")
+            (display (edge-end edge3))
+            (newline)
+            (if (null? edge3)
+                (start-repl #:debug (make-debug (stack->vector (make-stack #t)) 0 "trap!" #t)))
+            package-vertex))
         (let ((package-vertex (requested-package request-vertex)))
           (create-edge head package-vertex '((label . depends-on) ))
           (create-edge head request-vertex '((label . requests)))
@@ -184,7 +195,9 @@
         
             ((head . tail)
              (display (vertex-ref head 'package))
-             (display "\n")
+             (newline)
+             (display (length current-level))
+             (newline)
         
              (if (seen? head)
                  (loop tail next-level level)
@@ -218,9 +231,9 @@
 
 
 
-(define (bridgehead list-of-packages levels)
+(define (bridgehead list-of-requests levels)
   ;(with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
-    (populate-store! (map root-for-populating list-of-packages) levels)
+    (populate-store! (map root-for-populating list-of-reques) levels)
     ;)
   )
 
@@ -239,7 +252,7 @@
   (with-env (env-open* "/home/catonano/Taranto/guix/Culturia/npmjsdata" (list *ukv*))
     (traversi->list  
      (traversi-map
-      (lambda (id) (vertex-ref (get id) 'package)) 
+      (lambda (id) (get id)) 
       (traversi-filter 
        (lambda (vertex-id)
          (let ((vertex (get vertex-id)))
@@ -368,7 +381,9 @@
   (let* ((vertex (get id))
          (cons-cell (extracted-cons-cell vertex)))
     (not (cdr cons-cell))))
-    
+
+(define (empty-assoc? id)
+  (null? (vertex-assoc (get id))))
 
 (define (no-start? edge-id)
   (let ((record (get edge-id)))
