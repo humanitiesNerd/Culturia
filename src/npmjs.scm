@@ -385,6 +385,15 @@
 (define (empty-assoc? id)
   (null? (vertex-assoc (get id))))
 
+(define (no-dependencies? id)
+  (and
+   (not (vertex-ref (get id) 'broken-package))
+   (= (length (outgoings id)) 0)))
+
+
+(define (broken-package? id)
+  (vertex-ref (get id) 'broken-package))
+
 (define (no-start? edge-id)
   (let ((record (get edge-id)))
     (not (edge-start record))))
